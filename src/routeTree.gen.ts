@@ -10,9 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CategoriesRouteImport } from './routes/categories'
+import { Route as CheckoutRouteImport } from './routes/checkout'
 import { Route as HomeRouteImport } from './routes/home'
+import { Route as OrdersRouteImport } from './routes/orders'
+import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as CategorySlugRouteImport } from './routes/category.$slug'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
@@ -20,6 +24,11 @@ import { Route as ProductIdRouteImport } from './routes/product.$id'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CartRoute = CartRouteImport.update({
@@ -32,9 +41,24 @@ const CategoriesRoute = CategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HomeRoute = HomeRouteImport.update({
   id: '/home',
   path: '/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrdersRoute = OrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SearchRoute = SearchRouteImport.update({
@@ -55,18 +79,26 @@ const ProductIdRoute = ProductIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
+  '/checkout': typeof CheckoutRoute
   '/home': typeof HomeRoute
+  '/orders': typeof OrdersRoute
+  '/profile': typeof ProfileRoute
   '/search': typeof SearchRoute
   '/category/$slug': typeof CategorySlugRoute
   '/product/$id': typeof ProductIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
+  '/checkout': typeof CheckoutRoute
   '/home': typeof HomeRoute
+  '/orders': typeof OrdersRoute
+  '/profile': typeof ProfileRoute
   '/search': typeof SearchRoute
   '/category/$slug': typeof CategorySlugRoute
   '/product/$id': typeof ProductIdRoute
@@ -74,9 +106,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/categories': typeof CategoriesRoute
+  '/checkout': typeof CheckoutRoute
   '/home': typeof HomeRoute
+  '/orders': typeof OrdersRoute
+  '/profile': typeof ProfileRoute
   '/search': typeof SearchRoute
   '/category/$slug': typeof CategorySlugRoute
   '/product/$id': typeof ProductIdRoute
@@ -85,27 +121,39 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/cart'
     | '/categories'
+    | '/checkout'
     | '/home'
+    | '/orders'
+    | '/profile'
     | '/search'
     | '/category/$slug'
     | '/product/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/cart'
     | '/categories'
+    | '/checkout'
     | '/home'
+    | '/orders'
+    | '/profile'
     | '/search'
     | '/category/$slug'
     | '/product/$id'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/cart'
     | '/categories'
+    | '/checkout'
     | '/home'
+    | '/orders'
+    | '/profile'
     | '/search'
     | '/category/$slug'
     | '/product/$id'
@@ -113,9 +161,13 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   CartRoute: typeof CartRoute
   CategoriesRoute: typeof CategoriesRoute
+  CheckoutRoute: typeof CheckoutRoute
   HomeRoute: typeof HomeRoute
+  OrdersRoute: typeof OrdersRoute
+  ProfileRoute: typeof ProfileRoute
   SearchRoute: typeof SearchRoute
   CategorySlugRoute: typeof CategorySlugRoute
   ProductIdRoute: typeof ProductIdRoute
@@ -128,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cart': {
@@ -144,11 +203,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CategoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/home': {
       id: '/home'
       path: '/home'
       fullPath: '/home'
       preLoaderRoute: typeof HomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/orders': {
+      id: '/orders'
+      path: '/orders'
+      fullPath: '/orders'
+      preLoaderRoute: typeof OrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/search': {
@@ -177,9 +257,13 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   CartRoute: CartRoute,
   CategoriesRoute: CategoriesRoute,
+  CheckoutRoute: CheckoutRoute,
   HomeRoute: HomeRoute,
+  OrdersRoute: OrdersRoute,
+  ProfileRoute: ProfileRoute,
   SearchRoute: SearchRoute,
   CategorySlugRoute: CategorySlugRoute,
   ProductIdRoute: ProductIdRoute,
