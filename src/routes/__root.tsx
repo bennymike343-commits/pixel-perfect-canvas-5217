@@ -83,12 +83,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "theme-color", content: "#6d28d9" },
       { title: "JOSPPY GADGETS — Gadgets, Power & Electricals in Nigeria" },
-      { name: "description", content: "Shop chargers, cables, power banks, phone accessories, bulbs, sockets, wires, DSTV/GOTV and solar products in Naira." },
+      {
+        name: "description",
+        content:
+          "Shop chargers, cables, power banks, phone accessories, bulbs, sockets, wires, DSTV/GOTV and solar products in Naira.",
+      },
       { property: "og:title", content: "JOSPPY GADGETS" },
-      { property: "og:description", content: "Nigeria's trusted store for gadgets, power and electrical accessories." },
+      {
+        property: "og:description",
+        content: "Nigeria's trusted store for gadgets, power and electrical accessories.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-          ],
+    ],
     links: [
       {
         rel: "stylesheet",
@@ -96,7 +103,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap",
+      },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
   }),

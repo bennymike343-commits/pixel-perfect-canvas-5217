@@ -1,0 +1,6 @@
+{
+  "name": "JOSPPY GADGETS",
+  "description": "Shop gadgets, phone accessories, power banks, chargers, solar products, and electrical materials with nationwide delivery across Nigeria.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
