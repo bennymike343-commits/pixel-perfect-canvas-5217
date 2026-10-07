@@ -249,6 +249,12 @@ export const getWhatsAppSupportUrl = (message?: string) => {
 
 export const naira = (n: number) => "₦" + Math.round(n).toLocaleString("en-NG");
 
+export const OFFICIAL_BANK_ACCOUNT = {
+  bank: "Opay Microfinance Bank",
+  accountName: "Josppy Electrical Engineering Services",
+  accountNumber: "6428600287",
+} as const;
+
 export const DELIVERY_FEE = 2500;
 
 export const STATES = [
@@ -311,3 +317,40 @@ export type Product = {
   featured: boolean;
   created_at: string;
 };
+
+export const REMOVED_PRODUCTS_STORAGE_KEY = "josppy_removed_product_ids";
+
+export function getRemovedProductIds(): Set<string> {
+  try {
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem(REMOVED_PRODUCTS_STORAGE_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    }
+  } catch {
+    // ignore parse error
+  }
+  return new Set();
+}
+
+export function recordRemovedProductId(id: string): void {
+  if (!id) return;
+  try {
+    if (typeof localStorage !== "undefined") {
+      const set = getRemovedProductIds();
+      set.add(id);
+      localStorage.setItem(REMOVED_PRODUCTS_STORAGE_KEY, JSON.stringify(Array.from(set)));
+    }
+  } catch {
+    // ignore storage error
+  }
+}
+
+export function isProductActive(product?: { id?: string; category?: string } | null): boolean {
+  if (!product || !product.id) return false;
+  if (product.category === "archived") return false;
+  const removed = getRemovedProductIds();
+  return !removed.has(product.id);
+}

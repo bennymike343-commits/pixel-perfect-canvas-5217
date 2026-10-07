@@ -23,6 +23,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Screen, PageHeader } from "@/components/AppShell";
 import { naira, SUPPORT_PHONE, SUPPORT_PHONE_CALL, getWhatsAppSupportUrl } from "@/lib/catalog";
 import { useAuth } from "@/lib/auth";
+import { resolveProductImageUrl } from "@/lib/images";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/orders")({
@@ -444,7 +445,7 @@ function OrdersPage() {
                 <div key={it.id || idx} className="flex items-center gap-3 py-2.5">
                   {it.image_url ? (
                     <img
-                      src={it.image_url}
+                      src={resolveProductImageUrl(it.image_url)}
                       alt={it.name}
                       className="size-12 shrink-0 rounded-xl object-cover"
                     />
@@ -634,7 +635,7 @@ function OrdersPage() {
                         >
                           {it.image_url ? (
                             <img
-                              src={it.image_url}
+                              src={resolveProductImageUrl(it.image_url)}
                               alt={it.name}
                               className="size-full object-cover"
                             />

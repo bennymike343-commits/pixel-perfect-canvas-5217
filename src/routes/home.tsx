@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Screen, Logo } from "@/components/AppShell";
 import { ProductCard } from "@/components/ProductCard";
 import { SupportCard } from "@/components/SupportCard";
+import { StoreFooter } from "@/components/StoreFooter";
 import { CATEGORIES } from "@/lib/catalog";
 import { productsQuery } from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
@@ -167,6 +168,8 @@ function HomePage() {
       <div className="mx-4 mt-4">
         <SupportCard compact />
       </div>
+
+      <StoreFooter />
     </Screen>
   );
 }

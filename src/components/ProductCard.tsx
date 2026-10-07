@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Plus, Package } from "lucide-react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { naira, type Product } from "@/lib/catalog";
 import { useCart } from "@/lib/cart";
+import { useProductImageUrl } from "@/lib/images";
 
 export function ProductImage({
   src,
@@ -13,19 +15,34 @@ export function ProductImage({
   alt: string;
   className?: string;
 }) {
-  return src ? (
+  const resolvedSrc = useProductImageUrl(src);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [resolvedSrc]);
+
+  if (!resolvedSrc || hasError) {
+    return (
+      <div
+        className={`grid aspect-square w-full place-items-center rounded-xl bg-muted p-2 font-mono text-[10px] uppercase text-muted-foreground ${className}`}
+      >
+        <div className="flex flex-col items-center justify-center gap-1">
+          <Package className="size-5 text-muted-foreground/60" />
+          <span>No image</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       loading="lazy"
+      onError={() => setHasError(true)}
       className={`aspect-square w-full rounded-xl bg-muted object-cover ${className}`}
     />
-  ) : (
-    <div
-      className={`grid aspect-square w-full place-items-center rounded-xl bg-muted font-mono text-[10px] uppercase text-muted-foreground ${className}`}
-    >
-      No image
-    </div>
   );
 }
 

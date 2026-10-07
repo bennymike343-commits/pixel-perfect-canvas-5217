@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { getRemovedProductIds } from "@/lib/catalog";
 
 export type CartItem = {
   id: string;
@@ -23,19 +24,31 @@ const KEY = "josppy-cart";
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [ready, setReady] = useState(false);
+
   useEffect(() => {
     try {
-      setItems(JSON.parse(localStorage.getItem(KEY) || "[]"));
+      const raw = localStorage.getItem(KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const removed = getRemovedProductIds();
+          setItems(parsed.filter((i: CartItem) => !removed.has(i.id)));
+        }
+      }
     } catch {
       /* ignore */
     }
     setReady(true);
   }, []);
+
   useEffect(() => {
     if (ready) localStorage.setItem(KEY, JSON.stringify(items));
   }, [items, ready]);
 
-  const add: CartCtx["add"] = (item, qty) =>
+  const add: CartCtx["add"] = (item, qty) => {
+    const removed = getRemovedProductIds();
+    if (removed.has(item.id)) return;
+
     setItems((prev) => {
       const ex = prev.find((i) => i.id === item.id);
       if (ex)
@@ -44,6 +57,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         );
       return [...prev, { ...item, quantity: Math.min(qty, item.stock) }];
     });
+  };
+
   const setQty = (id: string, qty: number) =>
     setItems((p) =>
       p.map((i) => (i.id === id ? { ...i, quantity: Math.max(1, Math.min(qty, i.stock)) } : i)),

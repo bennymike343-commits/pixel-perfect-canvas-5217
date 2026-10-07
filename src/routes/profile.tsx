@@ -20,6 +20,9 @@ import {
   Save,
   X,
   ExternalLink,
+  FileText,
+  RotateCcw,
+  Truck,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -643,6 +646,43 @@ function ProfilePage() {
                 </a>
               </div>
             </div>
+
+            {/* Store Policies & Legal Information */}
+            <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Store Policies & Legal
+              </h3>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <Link
+                  to="/privacy-policy"
+                  className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+                >
+                  <ShieldCheck className="size-4 text-primary shrink-0" />
+                  <span>Privacy Policy</span>
+                </Link>
+                <Link
+                  to="/terms-and-conditions"
+                  className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+                >
+                  <FileText className="size-4 text-primary shrink-0" />
+                  <span>Terms & Conditions</span>
+                </Link>
+                <Link
+                  to="/delivery-policy"
+                  className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+                >
+                  <Truck className="size-4 text-primary shrink-0" />
+                  <span>Delivery Policy</span>
+                </Link>
+                <Link
+                  to="/returns-policy"
+                  className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+                >
+                  <RotateCcw className="size-4 text-primary shrink-0" />
+                  <span>Returns & Refund</span>
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Sign Out Button */}
@@ -928,10 +968,23 @@ function ProfilePage() {
               </div>
             </div>
 
+            {/* Agreement to Terms & Conditions and Privacy Policy */}
+            <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">
+              By creating an account, you agree to our{" "}
+              <Link to="/terms-and-conditions" className="font-semibold text-primary underline">
+                Terms & Conditions
+              </Link>{" "}
+              and acknowledge that you have read our{" "}
+              <Link to="/privacy-policy" className="font-semibold text-primary underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+
             <button
               type="submit"
               disabled={authSubmitting}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-glow transition-transform active:scale-[0.98] disabled:opacity-50"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground shadow-glow transition-transform active:scale-[0.98] disabled:opacity-50"
             >
               {authSubmitting ? (
                 <>
@@ -984,6 +1037,43 @@ function ProfilePage() {
               <Phone className="size-3.5" />
               <span>Call Support</span>
             </a>
+          </div>
+        </div>
+
+        {/* Store Policies & Legal Links */}
+        <div className="mt-5 rounded-3xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Store Policies & Legal
+          </h3>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <Link
+              to="/privacy-policy"
+              className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+            >
+              <ShieldCheck className="size-4 text-primary shrink-0" />
+              <span>Privacy Policy</span>
+            </Link>
+            <Link
+              to="/terms-and-conditions"
+              className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+            >
+              <FileText className="size-4 text-primary shrink-0" />
+              <span>Terms & Conditions</span>
+            </Link>
+            <Link
+              to="/delivery-policy"
+              className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+            >
+              <Truck className="size-4 text-primary shrink-0" />
+              <span>Delivery Policy</span>
+            </Link>
+            <Link
+              to="/returns-policy"
+              className="flex items-center gap-2 rounded-2xl bg-secondary/50 p-3 font-medium text-foreground transition-colors hover:text-primary active:scale-[0.98]"
+            >
+              <RotateCcw className="size-4 text-primary shrink-0" />
+              <span>Returns & Refund</span>
+            </Link>
           </div>
         </div>
       </div>

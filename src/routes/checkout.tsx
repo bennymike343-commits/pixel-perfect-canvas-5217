@@ -16,6 +16,7 @@ import {
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Screen, PageHeader } from "@/components/AppShell";
+import { resolveProductImageUrl } from "@/lib/images";
 import {
   DELIVERY_FEE,
   STATES,
@@ -23,6 +24,7 @@ import {
   SUPPORT_PHONE,
   SUPPORT_PHONE_CALL,
   getWhatsAppSupportUrl,
+  getRemovedProductIds,
 } from "@/lib/catalog";
 import { useCart, type CartItem } from "@/lib/cart";
 import { useAuth } from "@/lib/auth";
@@ -164,8 +166,14 @@ function CheckoutPage() {
       errs["address"] = "Please enter your full delivery address and landmark";
     }
 
-    // Check inventory stock limits
+    // Check removed products and inventory stock limits
+    const removedIds = getRemovedProductIds();
     for (const item of items) {
+      if (removedIds.has(item.id)) {
+        errs["stock"] =
+          `"${item.name}" is no longer available in the store catalog. Please remove it from your cart to proceed.`;
+        break;
+      }
       if (item.stock <= 0) {
         errs["stock"] =
           `"${item.name}" is currently out of stock. Please remove it from your cart.`;
@@ -187,6 +195,15 @@ function CheckoutPage() {
 
     if (items.length === 0) {
       toast.error("Your cart is empty. Please add products first.");
+      return;
+    }
+
+    const removedIds = getRemovedProductIds();
+    const unavailableItem = items.find((i) => removedIds.has(i.id));
+    if (unavailableItem) {
+      toast.error(
+        `"${unavailableItem.name}" is no longer available. Please remove it from your cart.`,
+      );
       return;
     }
 
@@ -388,7 +405,7 @@ function CheckoutPage() {
                   <div key={item.id} className="flex items-center gap-3 py-2.5">
                     {item.image_url ? (
                       <img
-                        src={item.image_url}
+                        src={resolveProductImageUrl(item.image_url)}
                         alt={item.name}
                         className="size-12 rounded-xl object-cover"
                       />
@@ -469,6 +486,20 @@ function CheckoutPage() {
               className="flex items-center justify-center rounded-2xl border border-input bg-card py-3.5 text-center text-sm font-bold text-foreground transition-colors hover:bg-accent"
             >
               View Order History
+            </Link>
+          </div>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+            <Link to="/delivery-policy" className="hover:text-primary underline">
+              Delivery Policy
+            </Link>
+            <span>·</span>
+            <Link to="/returns-policy" className="hover:text-primary underline">
+              Returns & Refund Policy
+            </Link>
+            <span>·</span>
+            <Link to="/terms-and-conditions" className="hover:text-primary underline">
+              Terms & Conditions
             </Link>
           </div>
         </div>
@@ -737,33 +768,42 @@ function CheckoutPage() {
 
           {/* Items preview list */}
           <div className="mt-3 divide-y divide-border/60">
-            {items.map((i) => (
-              <div key={i.id} className="flex items-center gap-3 py-2.5">
-                {i.image_url ? (
-                  <img
-                    src={i.image_url}
-                    alt={i.name}
-                    className="size-12 shrink-0 rounded-xl object-cover"
-                  />
-                ) : (
-                  <div className="size-12 shrink-0 rounded-xl bg-muted" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-bold">{i.name}</p>
-                  <p className="font-mono text-[11px] text-muted-foreground">
-                    Qty: {i.quantity} × {naira(i.price)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="font-mono text-xs font-bold text-foreground">
-                    {naira(i.price * i.quantity)}
-                  </span>
-                  {i.quantity > i.stock && (
-                    <p className="text-[10px] text-destructive">Max: {i.stock}</p>
+            {items.map((i) => {
+              const isItemRemoved = removedIds.has(i.id);
+              return (
+                <div key={i.id} className="flex items-center gap-3 py-2.5">
+                  {i.image_url ? (
+                    <img
+                      src={resolveProductImageUrl(i.image_url)}
+                      alt={i.name}
+                      className="size-12 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : (
+                    <div className="size-12 shrink-0 rounded-xl bg-muted" />
                   )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold">{i.name}</p>
+                    {isItemRemoved ? (
+                      <span className="text-[10px] font-bold text-destructive">
+                        Unavailable (Removed from store)
+                      </span>
+                    ) : (
+                      <p className="font-mono text-[11px] text-muted-foreground">
+                        Qty: {i.quantity} × {naira(i.price)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <span className="font-mono text-xs font-bold text-foreground">
+                      {naira(i.price * i.quantity)}
+                    </span>
+                    {i.quantity > i.stock && (
+                      <p className="text-[10px] text-destructive">Max: {i.stock}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Pricing calculations */}
@@ -785,10 +825,45 @@ function CheckoutPage() {
           </div>
         </section>
 
-        {/* Security badge */}
-        <div className="mt-4 flex items-center justify-center gap-2 text-center text-xs text-muted-foreground">
-          <ShieldCheck className="size-4 text-primary" />
-          <span>Genuine products · Inspected & tested before delivery</span>
+        {/* Security badge & Legal Policy Note */}
+        <div className="mt-4 space-y-2 text-center text-xs text-muted-foreground">
+          <div className="flex items-center justify-center gap-2">
+            <ShieldCheck className="size-4 text-primary" />
+            <span>Genuine products · Inspected & tested before delivery</span>
+          </div>
+          <p className="text-[11px] leading-relaxed">
+            By placing your order, you agree to our{" "}
+            <Link to="/terms-and-conditions" className="font-semibold text-primary underline">
+              Terms & Conditions
+            </Link>
+            ,{" "}
+            <Link to="/delivery-policy" className="font-semibold text-primary underline">
+              Delivery Policy
+            </Link>
+            , and{" "}
+            <Link to="/returns-policy" className="font-semibold text-primary underline">
+              Returns & Refund Policy
+            </Link>
+            .
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Need help before placing order? Call{" "}
+            <a href={SUPPORT_PHONE_CALL} className="font-bold text-foreground underline">
+              {SUPPORT_PHONE}
+            </a>{" "}
+            or chat on{" "}
+            <a
+              href={getWhatsAppSupportUrl(
+                "Hello JOSPPY GADGETS, I have a question before placing my checkout order.",
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-bold text-[#128C7E] underline"
+            >
+              WhatsApp
+            </a>
+            .
+          </p>
         </div>
 
         {/* Fixed bottom checkout bar */}

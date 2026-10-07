@@ -213,8 +213,32 @@ const ADMIN_EMAIL = "udojoshuasunday@gmail.com";
 const ADMIN_UUID = "6e57d269-9db1-4268-887b-5506425fa728";
 const ADMIN_UUID_LEGACY = "6e34907e-30a8-4ab9-870c-5d4e535abf21";
 
+function getInitialMockProducts(): MockRow[] {
+  if (typeof window !== "undefined") {
+    try {
+      const removedRaw = localStorage.getItem("josppy_removed_product_ids");
+      const removedSet = new Set(removedRaw ? JSON.parse(removedRaw) : []);
+
+      const raw = localStorage.getItem("josppy_mock_products");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(
+            (p: MockRow) => p["category"] !== "archived" && !removedSet.has(p["id"] as string),
+          );
+        }
+      }
+
+      return SEED_PRODUCTS.filter((p) => p.category !== "archived" && !removedSet.has(p.id));
+    } catch {
+      // ignore
+    }
+  }
+  return [...SEED_PRODUCTS];
+}
+
 const inMemoryTables: Record<string, MockRow[]> = {
-  products: [...SEED_PRODUCTS],
+  products: getInitialMockProducts(),
   orders: [],
   order_items: [],
   profiles: [
@@ -366,6 +390,17 @@ function notifyAuth(event: string, session: unknown) {
   }
 }
 
+function syncTableToLocalStorage(tableName: string, data: MockRow[]) {
+  if (typeof window === "undefined") return;
+  try {
+    if (tableName === "products") {
+      localStorage.setItem("josppy_mock_products", JSON.stringify(data));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function createMockSupabaseClient() {
   console.warn(
     "[AI Studio] Supabase environment variables not configured — using in-memory mock store with seed catalog.",
@@ -395,6 +430,7 @@ function createMockSupabaseClient() {
               });
             }
           }
+          syncTableToLocalStorage(tableName, tableData);
           return {
             select() {
               return createMockQueryBuilder(arr);
@@ -431,6 +467,7 @@ function createMockSupabaseClient() {
               }
             }
           }
+          syncTableToLocalStorage(tableName, tableData);
           return {
             select() {
               return createMockQueryBuilder(inserted);
@@ -453,6 +490,7 @@ function createMockSupabaseClient() {
                   Object.assign(row, updates);
                 }
               }
+              syncTableToLocalStorage(tableName, tableData);
               return Promise.resolve({ data: updates, error: null });
             },
           };
@@ -462,6 +500,7 @@ function createMockSupabaseClient() {
             eq(field: string, val: unknown) {
               const idx = tableData.findIndex((r) => r[field] === val);
               if (idx >= 0) tableData.splice(idx, 1);
+              syncTableToLocalStorage(tableName, tableData);
               return Promise.resolve({ data: null, error: null });
             },
           };
@@ -674,7 +713,33 @@ function createMockSupabaseClient() {
     storage: {
       from(bucket: string) {
         return {
-          getPublicUrl: (path: string) => ({ data: { publicUrl: path } }),
+          getPublicUrl: (path: string) => {
+            let found = "";
+            if (typeof window !== "undefined") {
+              try {
+                const stored = localStorage.getItem(`josppy_img_${bucket}_${path}`);
+                if (stored) found = stored;
+              } catch {
+                // ignore
+              }
+            }
+            return { data: { publicUrl: found || path } };
+          },
+          createSignedUrl: async (path: string, _expiresIn?: number) => {
+            let found = "";
+            if (typeof window !== "undefined") {
+              try {
+                const stored = localStorage.getItem(`josppy_img_${bucket}_${path}`);
+                if (stored) found = stored;
+              } catch {
+                // ignore
+              }
+            }
+            return {
+              data: { signedUrl: found || `/products/${path}` },
+              error: null,
+            };
+          },
           upload: async (path: string, file: File | Blob) => {
             let dataUrl = "";
             if (typeof FileReader !== "undefined") {
@@ -689,6 +754,13 @@ function createMockSupabaseClient() {
               }
             } else {
               dataUrl = `/products/${path}`;
+            }
+            if (typeof window !== "undefined" && dataUrl) {
+              try {
+                localStorage.setItem(`josppy_img_${bucket}_${path}`, dataUrl);
+              } catch {
+                // ignore
+              }
             }
             return {
               data: { path, fullPath: `${bucket}/${path}`, url: dataUrl },

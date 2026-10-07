@@ -43,9 +43,12 @@ import {
   DELIVERY_FEE,
   categoryBySlug,
   productMatchesCategory,
+  recordRemovedProductId,
+  isProductActive,
 } from "@/lib/catalog";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadProductImage, resolveProductImageUrl, useProductImageUrl } from "@/lib/images";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -149,6 +152,73 @@ function StockBadge({ stock }: { stock: number }) {
   );
 }
 
+function ImageDiagnosticBadge({ rawUrl }: { rawUrl: string | null | undefined }) {
+  const [loadStatus, setLoadStatus] = useState<"loading" | "success" | "error">("loading");
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const resolvedUrl = useProductImageUrl(rawUrl);
+
+  useEffect(() => {
+    if (!rawUrl || !rawUrl.trim()) {
+      setLoadStatus("error");
+      setErrorMsg("Empty or missing image URL");
+      return;
+    }
+
+    setLoadStatus("loading");
+    setErrorMsg("");
+
+    const testImg = new Image();
+    testImg.onload = () => {
+      setLoadStatus("success");
+    };
+    testImg.onerror = () => {
+      setLoadStatus("error");
+      setErrorMsg("Failed to load image in browser");
+    };
+    testImg.src = resolvedUrl;
+
+    return () => {
+      testImg.onload = null;
+      testImg.onerror = null;
+    };
+  }, [rawUrl, resolvedUrl]);
+
+  const isUploaded = Boolean(
+    rawUrl &&
+    (rawUrl.includes("product-images") ||
+      rawUrl.includes("prod-") ||
+      rawUrl.includes("token=") ||
+      rawUrl.includes("test-")),
+  );
+
+  if (!isUploaded) return null;
+
+  return (
+    <div className="mt-2.5 rounded-xl border border-border/80 bg-muted/40 p-2 text-[10px] font-mono leading-relaxed text-foreground">
+      <div className="flex items-center gap-1.5 font-bold">
+        <span>Image Diagnostic:</span>
+        {loadStatus === "loading" && (
+          <span className="text-muted-foreground animate-pulse">Testing URL...</span>
+        )}
+        {loadStatus === "success" && (
+          <span className="text-emerald-600 dark:text-emerald-400">
+            ✓ Loaded successfully (HTTP 200 OK)
+          </span>
+        )}
+        {loadStatus === "error" && <span className="text-destructive">✗ {errorMsg}</span>}
+      </div>
+      <div className="mt-1 break-all text-muted-foreground">
+        <span className="font-semibold text-foreground">Saved image_url:</span> {rawUrl}
+      </div>
+      {resolvedUrl !== rawUrl && (
+        <div className="mt-0.5 break-all text-muted-foreground">
+          <span className="font-semibold text-foreground">Resolved URL:</span> {resolvedUrl}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboardPage() {
   const { session, loading: authLoading, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -168,6 +238,10 @@ function AdminDashboardPage() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
 
   // Orders Filters & Detail Modal
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -188,7 +262,7 @@ function AdminDashboardPage() {
         .order("created_at", { ascending: false });
 
       if (!prodErr && prodData) {
-        setProducts(prodData as Product[]);
+        setProducts((prodData as Product[]).filter(isProductActive));
       }
 
       // 2. Fetch Orders (Admin authorized)
@@ -294,6 +368,36 @@ function AdminDashboardPage() {
     }
   };
 
+  // Open Add Product Modal
+  const openAddProduct = () => {
+    setEditingProduct({
+      name: "",
+      description: "",
+      category: CATEGORIES[0].slug,
+      price: 0,
+      stock: 10,
+      featured: false,
+      image_url: "",
+    });
+    setPendingImageFile(null);
+    setImagePreviewUrl(null);
+    setIsProductModalOpen(true);
+  };
+
+  // Open Edit Product Modal
+  const openEditProduct = (product: Product) => {
+    setEditingProduct({ ...product });
+    setPendingImageFile(null);
+    setImagePreviewUrl(product.image_url || null);
+    setIsProductModalOpen(true);
+  };
+
+  // Helper to upload product image to storage bucket
+  const uploadProductImageFile = async (file: File): Promise<string> => {
+    const result = await uploadProductImage(file);
+    return result.url;
+  };
+
   // Handle Product Save (Add / Edit)
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -318,6 +422,30 @@ function AdminDashboardPage() {
 
     setSavingProduct(true);
     try {
+      // Determine final image URL: upload new file if selected, otherwise preserve existing
+      let finalImageUrl = editingProduct.image_url?.trim() || "";
+
+      if (pendingImageFile) {
+        setImageUploading(true);
+        try {
+          finalImageUrl = await uploadProductImageFile(pendingImageFile);
+        } catch (uploadErr) {
+          console.error("Failed to upload image file:", uploadErr);
+          const msg =
+            uploadErr instanceof Error ? uploadErr.message : "Failed to upload image file.";
+          toast.error(`Image upload failed: ${msg}`);
+          setSavingProduct(false);
+          setImageUploading(false);
+          return;
+        } finally {
+          setImageUploading(false);
+        }
+      }
+
+      if (!finalImageUrl || finalImageUrl.startsWith("blob:")) {
+        finalImageUrl = "/products/powerbank.jpg";
+      }
+
       const isNew = !editingProduct.id;
       const payload = {
         name: editingProduct.name.trim(),
@@ -325,7 +453,7 @@ function AdminDashboardPage() {
         category: editingProduct.category,
         price: Math.round(editingProduct.price),
         stock: Math.round(editingProduct.stock),
-        image_url: editingProduct.image_url || "/products/powerbank.jpg",
+        image_url: finalImageUrl,
         featured: !!editingProduct.featured,
       };
 
@@ -352,6 +480,12 @@ function AdminDashboardPage() {
       }
 
       await queryClient.invalidateQueries({ queryKey: ["products"] });
+      if (editingProduct.id) {
+        await queryClient.invalidateQueries({ queryKey: ["product", editingProduct.id] });
+      }
+
+      setPendingImageFile(null);
+      setImagePreviewUrl(null);
       setIsProductModalOpen(false);
       setEditingProduct(null);
     } catch (err) {
@@ -362,70 +496,110 @@ function AdminDashboardPage() {
     }
   };
 
-  // Safe Archive/Delete Product
-  const handleDeleteProduct = async (product: Product) => {
-    if (
-      !confirm(
-        `Are you sure you want to remove "${product.name}"? If referenced by past customer orders, it will be marked out of stock to preserve order history.`,
-      )
-    ) {
-      return;
-    }
+  // Prompt Confirmation for Product Deletion
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product);
+  };
+
+  // Perform Product Deletion / Safe Archival with Order Preservation
+  const handleConfirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    const target = productToDelete;
+    setDeletingProductId(target.id);
 
     try {
-      // First attempt to delete
-      const { error } = await supabase.from("products").delete().eq("id", product.id);
+      // 1. Check if product is referenced by historical orders in order_items
+      const { data: orderItemRefs, error: refError } = await supabase
+        .from("order_items")
+        .select("id")
+        .eq("product_id", target.id)
+        .limit(1);
 
-      if (error) {
-        // If deletion violates foreign key constraint from order_items, safely zero out stock
-        console.warn("Referenced product, setting stock to 0 instead of deletion", error);
-        await supabase.from("products").update({ stock: 0, featured: false }).eq("id", product.id);
-        setProducts((prev) =>
-          prev.map((p) => (p.id === product.id ? { ...p, stock: 0, featured: false } : p)),
-        );
-        toast.info("Product has historical orders. Deactivated and marked out of stock.");
-      } else {
-        setProducts((prev) => prev.filter((p) => p.id !== product.id));
-        toast.success("Product removed from catalog.");
+      const hasOrders = !refError && Boolean(orderItemRefs && orderItemRefs.length > 0);
+
+      let directDeleted = false;
+
+      if (!hasOrders) {
+        // Unreferenced product: perform clean delete from products table
+        const { error: delError } = await supabase.from("products").delete().eq("id", target.id);
+        if (!delError) {
+          directDeleted = true;
+        }
       }
 
+      if (!directDeleted) {
+        // Referenced product: safely archive to preserve past orders and customer receipt items
+        const { error: archiveError } = await supabase
+          .from("products")
+          .update({
+            category: "archived",
+            stock: 0,
+            featured: false,
+          })
+          .eq("id", target.id);
+
+        if (archiveError) {
+          throw new Error(archiveError.message);
+        }
+      }
+
+      // 2. Persistently record removed ID so it never reappears on reload
+      recordRemovedProductId(target.id);
+
+      // 3. Immediately remove from Admin product list state
+      setProducts((prev) => prev.filter((p) => p.id !== target.id));
+
+      // 4. Invalidate storefront queries so categories, search, home immediately drop it
       await queryClient.invalidateQueries({ queryKey: ["products"] });
+      await queryClient.invalidateQueries({ queryKey: ["product", target.id] });
+
+      // 5. Close modals
+      setProductToDelete(null);
+      if (editingProduct?.id === target.id) {
+        setIsProductModalOpen(false);
+        setEditingProduct(null);
+      }
+
+      toast.success(
+        hasOrders
+          ? `"${target.name}" removed from catalog. Past customer order records preserved.`
+          : `"${target.name}" permanently deleted.`,
+      );
     } catch (err) {
-      toast.error("Failed to remove product.");
+      const msg = err instanceof Error ? err.message : "Failed to delete product.";
+      toast.error(msg);
+    } finally {
+      setDeletingProductId(null);
     }
   };
 
-  // Handle Image Upload
-  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle Image Selection with File Validation & Instant Preview
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setImageUploading(true);
-    try {
-      const ext = file.name.split(".").pop() || "jpg";
-      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+    // Validate image format
+    const validFormats = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    const isAllowedExt = ["jpg", "jpeg", "png", "webp"].includes(ext || "");
 
-      const { data, error } = await supabase.storage.from("product-images").upload(fileName, file);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const imageUrl = (data as { url?: string })?.url || `/products/${fileName}`;
-      setEditingProduct((prev) => ({ ...prev, image_url: imageUrl }));
-      toast.success("Image uploaded!");
-    } catch (err) {
-      console.warn("Upload fallback to data URL:", err);
-      // Fallback: read as Data URL
-      const reader = new FileReader();
-      reader.onload = () => {
-        setEditingProduct((prev) => ({ ...prev, image_url: reader.result as string }));
-        toast.success("Image loaded!");
-      };
-      reader.readAsDataURL(file);
-    } finally {
-      setImageUploading(false);
+    if (!validFormats.includes(file.type) && !isAllowedExt) {
+      toast.error("Please select a JPG, PNG, or WEBP image.");
+      return;
     }
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image file is too large. Maximum size is 5MB.");
+      return;
+    }
+
+    // Generate immediate preview in the product form
+    const localPreviewUrl = URL.createObjectURL(file);
+    setImagePreviewUrl(localPreviewUrl);
+    setPendingImageFile(file);
+    setEditingProduct((prev) => (prev ? { ...prev, image_url: localPreviewUrl } : null));
+    toast.success("Image selected! Click Save Product to save changes.");
   };
 
   // Handle Order Status Update
@@ -754,18 +928,7 @@ function AdminDashboardPage() {
               </span>
               <div className="mt-3 flex gap-2">
                 <button
-                  onClick={() => {
-                    setEditingProduct({
-                      name: "",
-                      description: "",
-                      category: "power-banks",
-                      price: 0,
-                      stock: 10,
-                      featured: false,
-                      image_url: "/products/powerbank.jpg",
-                    });
-                    setIsProductModalOpen(true);
-                  }}
+                  onClick={openAddProduct}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-primary py-3 text-xs font-bold text-primary-foreground shadow-glow"
                 >
                   <Plus className="size-4" />
@@ -849,18 +1012,7 @@ function AdminDashboardPage() {
               </div>
 
               <button
-                onClick={() => {
-                  setEditingProduct({
-                    name: "",
-                    description: "",
-                    category: "power-banks",
-                    price: 0,
-                    stock: 10,
-                    featured: false,
-                    image_url: "/products/powerbank.jpg",
-                  });
-                  setIsProductModalOpen(true);
-                }}
+                onClick={openAddProduct}
                 className="flex items-center gap-1 rounded-2xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-glow shrink-0"
               >
                 <Plus className="size-4" />
@@ -904,7 +1056,7 @@ function AdminDashboardPage() {
                 >
                   <div className="flex items-start gap-3">
                     <img
-                      src={p.image_url || "/products/powerbank.jpg"}
+                      src={resolveProductImageUrl(p.image_url)}
                       alt={p.name}
                       className="size-16 shrink-0 rounded-2xl object-cover border border-border bg-muted"
                     />
@@ -956,13 +1108,12 @@ function AdminDashboardPage() {
                     </div>
                   </div>
 
+                  <ImageDiagnosticBadge rawUrl={p.image_url} />
+
                   {/* Actions Bar */}
                   <div className="mt-3 flex items-center justify-end gap-2 border-t border-border/60 pt-2.5">
                     <button
-                      onClick={() => {
-                        setEditingProduct(p);
-                        setIsProductModalOpen(true);
-                      }}
+                      onClick={() => openEditProduct(p)}
                       className="flex items-center gap-1 rounded-xl bg-secondary px-3 py-1.5 text-xs font-bold text-secondary-foreground transition-colors hover:bg-accent"
                     >
                       <Edit className="size-3.5" />
@@ -1198,36 +1349,51 @@ function AdminDashboardPage() {
 
               {/* Product Image URL & Upload */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Product Image
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Product Image
+                  </label>
+                  {pendingImageFile && (
+                    <span className="text-[10px] font-bold text-success">
+                      ✓ New image selected (saves on submit)
+                    </span>
+                  )}
+                </div>
                 <div className="mt-1.5 flex items-center gap-3">
                   <img
-                    src={editingProduct.image_url || "/products/powerbank.jpg"}
+                    src={imagePreviewUrl || resolveProductImageUrl(editingProduct.image_url)}
                     alt="Preview"
-                    className="size-14 rounded-xl border border-border object-cover bg-muted shrink-0"
+                    className="size-16 rounded-2xl border border-border object-cover bg-muted shrink-0 shadow-sm"
                   />
                   <div className="flex-1 space-y-1.5">
                     <input
                       type="text"
                       value={editingProduct.image_url || ""}
-                      onChange={(e) =>
-                        setEditingProduct({ ...editingProduct, image_url: e.target.value })
-                      }
-                      placeholder="/products/powerbank.jpg or https://…"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setEditingProduct({ ...editingProduct, image_url: val });
+                        setImagePreviewUrl(val || null);
+                        setPendingImageFile(null);
+                      }}
+                      placeholder="Image URL or choose file below…"
                       className="w-full rounded-xl border border-input bg-background px-3 py-1.5 text-xs outline-none focus:border-primary"
                     />
-                    <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-secondary py-1 text-[11px] font-bold text-secondary-foreground hover:bg-accent">
-                      <Upload className="size-3" />
-                      <span>{imageUploading ? "Uploading…" : "Upload Image"}</span>
+                    <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-border bg-secondary py-1.5 text-[11px] font-bold text-secondary-foreground hover:bg-accent transition-colors">
+                      <Upload className="size-3.5" />
+                      <span>
+                        {imageUploading ? "Processing…" : "Choose Image (JPG, PNG, WEBP)"}
+                      </span>
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp,image/jpg"
                         disabled={imageUploading}
                         onChange={handleImageFileChange}
                         className="hidden"
                       />
                     </label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Formats: JPG, PNG, WEBP (Max 5MB) · Instant preview
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1268,10 +1434,27 @@ function AdminDashboardPage() {
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex gap-2 pt-3 border-t border-border">
+              <div className="flex items-center gap-2 pt-3 border-t border-border">
+                {editingProduct.id && (
+                  <button
+                    type="button"
+                    disabled={savingProduct || Boolean(deletingProductId)}
+                    onClick={() => {
+                      const p =
+                        products.find((x) => x.id === editingProduct.id) ||
+                        (editingProduct as Product);
+                      setProductToDelete(p);
+                    }}
+                    className="flex items-center justify-center gap-1.5 rounded-2xl border border-destructive/20 bg-destructive/10 px-3.5 py-3 text-xs font-bold text-destructive hover:bg-destructive/20 transition-colors"
+                    title="Delete product from catalog"
+                  >
+                    <Trash2 className="size-4" />
+                    <span>Delete</span>
+                  </button>
+                )}
                 <button
                   type="submit"
-                  disabled={savingProduct}
+                  disabled={savingProduct || Boolean(deletingProductId)}
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-xs font-bold text-primary-foreground shadow-glow disabled:opacity-50"
                 >
                   {savingProduct ? (
@@ -1288,6 +1471,8 @@ function AdminDashboardPage() {
                   onClick={() => {
                     setIsProductModalOpen(false);
                     setEditingProduct(null);
+                    setPendingImageFile(null);
+                    setImagePreviewUrl(null);
                   }}
                   className="rounded-2xl border border-input bg-card px-4 py-3 text-xs font-bold text-foreground hover:bg-muted"
                 >
@@ -1295,6 +1480,73 @@ function AdminDashboardPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ======================= MODAL: CONFIRM PRODUCT DELETION ======================= */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-5 shadow-2xl">
+            <div className="flex items-center gap-3 border-b border-border pb-3">
+              <div className="grid size-10 place-items-center rounded-2xl bg-destructive/15 text-destructive">
+                <Trash2 className="size-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Delete Product</h3>
+                <p className="text-xs text-muted-foreground">Confirm removal from catalog</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border bg-secondary/40 p-3">
+              <img
+                src={resolveProductImageUrl(productToDelete.image_url)}
+                alt={productToDelete.name}
+                className="size-12 rounded-xl object-cover bg-muted shrink-0"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-bold text-foreground">{productToDelete.name}</p>
+                <p className="font-mono text-[11px] text-primary">{naira(productToDelete.price)}</p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              Are you sure you want to permanently remove this product? It will immediately
+              disappear from the storefront, category pages, and search results.
+            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              If this product was ordered in the past, historical order information will be safely
+              preserved.
+            </p>
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                disabled={Boolean(deletingProductId)}
+                onClick={() => setProductToDelete(null)}
+                className="flex-1 rounded-2xl border border-input bg-card py-2.5 text-xs font-bold text-foreground hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(deletingProductId)}
+                onClick={handleConfirmDeleteProduct}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-destructive py-2.5 text-xs font-bold text-destructive-foreground shadow-sm transition-transform active:scale-[0.98] disabled:opacity-50"
+              >
+                {deletingProductId ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Deleting…</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1383,7 +1635,7 @@ function AdminDashboardPage() {
                   {(selectedOrder.items || []).map((it, idx) => (
                     <div key={it.id || idx} className="flex items-center gap-3 py-2">
                       <img
-                        src={it.image_url || "/products/powerbank.jpg"}
+                        src={resolveProductImageUrl(it.image_url)}
                         alt={it.name}
                         className="size-11 rounded-xl object-cover bg-muted shrink-0"
                       />
