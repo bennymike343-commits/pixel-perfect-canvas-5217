@@ -11,6 +11,13 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
+    // Emit a static, prerendered index.html for "/" so the Capacitor Android
+    // WebView can load the app shell locally from .output/public (no remote server).
+    // Only the entry route is prerendered; all other routes still render on the server.
+    prerender: {
+      enabled: true,
+      crawlLinks: false,
+    },
   },
   vite: {
     server: {
