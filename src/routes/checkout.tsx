@@ -37,19 +37,19 @@ export const Route = createFileRoute("/checkout")({
       { title: "Checkout — JOSPPY GADGETS" },
       {
         name: "description",
-        content: "Complete your order with nationwide delivery across Nigeria.",
+        content:
+          "Complete your order with secure bank transfer and nationwide delivery across Nigeria.",
       },
       { property: "og:title", content: "Checkout — JOSPPY GADGETS" },
       {
         property: "og:description",
-        content: "Complete your order with nationwide delivery across Nigeria.",
+        content:
+          "Complete your order with bank transfer and nationwide delivery across Nigeria.",
       },
     ],
   }),
   component: CheckoutPage,
 });
-
-type PaymentMethod = "pod" | "transfer";
 
 type ConfirmedOrder = {
   id: string;
@@ -61,7 +61,6 @@ type ConfirmedOrder = {
   subtotal: number;
   deliveryFee: number;
   total: number;
-  paymentMethod: PaymentMethod;
   createdAt: string;
   items: CartItem[];
 };
@@ -113,8 +112,6 @@ function CheckoutPage() {
   const [state, setState] = useState("Lagos");
   const [city, setCity] = useState("");
   const [address, setAddress] = useState("");
-  const [paymentMethod, setPaymentMethod] =
-    useState<PaymentMethod>("pod");
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmedOrder, setConfirmedOrder] =
@@ -122,8 +119,6 @@ function CheckoutPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const grandTotal = subtotal + DELIVERY_FEE;
-
-  // FIX: Declare removedIds in the component scope so the order summary can use it.
   const removedIds = getRemovedProductIds();
 
   // Automatically pre-fill saved customer details if signed in.
@@ -194,7 +189,7 @@ function CheckoutPage() {
         "Please enter your full delivery address and landmark";
     }
 
-    // Check removed products and inventory stock limits.
+    // Check product availability and stock limits.
     for (const item of items) {
       if (removedIds.has(item.id)) {
         errs["stock"] =
@@ -228,14 +223,16 @@ function CheckoutPage() {
   const handlePlaceOrder = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (submitting) return;
+
     if (items.length === 0) {
       toast.error("Your cart is empty. Please add products first.");
       return;
     }
 
     const currentRemovedIds = getRemovedProductIds();
-    const unavailableItem = items.find((i) =>
-      currentRemovedIds.has(i.id),
+    const unavailableItem = items.find((item) =>
+      currentRemovedIds.has(item.id),
     );
 
     if (unavailableItem) {
@@ -253,7 +250,7 @@ function CheckoutPage() {
       const userId =
         session?.user?.id || getOrCreateGuestUserId();
 
-      // 1. Create order record.
+      // Create the order as pending, not paid.
       const { data: orderData, error: orderError } = await supabase
         .from("orders")
         .insert({
@@ -283,14 +280,14 @@ function CheckoutPage() {
         (orderData as { id?: string } | null)?.id ||
         `order-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-      // 2. Insert order items.
-      const orderItemsPayload = items.map((i) => ({
+      // Save the order items.
+      const orderItemsPayload = items.map((item) => ({
         order_id: generatedId,
-        product_id: i.id,
-        name: i.name,
-        price: i.price,
-        quantity: i.quantity,
-        image_url: i.image_url,
+        product_id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image_url: item.image_url,
       }));
 
       const { error: itemsError } = await supabase
@@ -299,14 +296,17 @@ function CheckoutPage() {
 
       if (itemsError) {
         console.error("Order items creation error:", itemsError);
+
+        toast.error(
+          "The order was created, but its items could not be saved. Please contact support before placing another order.",
+        );
+        return;
       }
 
-      // 3. Refresh product data.
       await queryClient.invalidateQueries({
         queryKey: ["products"],
       });
 
-      // 4. Save order details locally.
       const newConfirmedOrder: ConfirmedOrder = {
         id: generatedId,
         fullName: fullName.trim(),
@@ -317,7 +317,6 @@ function CheckoutPage() {
         subtotal,
         deliveryFee: DELIVERY_FEE,
         total: grandTotal,
-        paymentMethod,
         createdAt: new Date().toISOString(),
         items: [...items],
       };
@@ -325,9 +324,9 @@ function CheckoutPage() {
       saveLocalRecentOrder(newConfirmedOrder);
       setConfirmedOrder(newConfirmedOrder);
 
-      // 5. Clear cart after order creation.
       clear();
-      toast.success("Order placed successfully!");
+
+      toast.success("Order submitted. Payment is awaiting verification.");
 
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -344,32 +343,45 @@ function CheckoutPage() {
     }
   };
 
-  // Order confirmation screen.
+  // Order submitted: payment is still awaiting verification.
   if (confirmedOrder) {
     return (
       <Screen nav={false}>
-        <PageHeader title="Order Confirmed" back={false} />
+        <PageHeader title="Awaiting Payment" back={false} />
 
         <div className="px-4 pb-20 pt-4">
           <div className="rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
-            <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-success/15 text-success">
-              <CheckCircle2 className="size-9" />
+            <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-accent text-primary">
+              <Building2 className="size-9" />
             </div>
 
             <h2 className="mt-4 text-2xl font-black tracking-tight text-foreground">
-              Order Confirmed!
+              Order Submitted — Awaiting Payment
             </h2>
 
-            <p className="mt-1 text-sm text-muted-foreground">
-              Thank you for shopping with JOSPPY GADGETS.
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Thank you for shopping with JOSPPY GADGETS. Please transfer
+              the amount below. Your payment must be verified before your
+              order is approved for dispatch.
             </p>
 
             <div className="mt-3 inline-block rounded-xl bg-secondary px-3 py-1.5 font-mono text-xs font-bold text-secondary-foreground">
               Order ID: #{confirmedOrder.id.slice(0, 8).toUpperCase()}
             </div>
+
+            <div className="mt-4 rounded-xl border border-border bg-background p-3 text-left text-xs leading-relaxed text-muted-foreground">
+              <p className="font-bold text-foreground">
+                Payment status: Awaiting verification
+              </p>
+              <p className="mt-1">
+                Your order submission does not mean that payment has been
+                received or confirmed.
+              </p>
+            </div>
           </div>
 
           <div className="mt-4 space-y-3">
+            {/* Delivery details */}
             <div className="rounded-3xl border border-border bg-card p-5">
               <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 <Truck className="size-4 text-primary" />
@@ -380,9 +392,11 @@ function CheckoutPage() {
                 <p className="font-bold text-foreground">
                   {confirmedOrder.fullName}
                 </p>
+
                 <p className="text-muted-foreground">
                   {confirmedOrder.phone}
                 </p>
+
                 <p className="text-muted-foreground">
                   {confirmedOrder.address}, {confirmedOrder.city},{" "}
                   {confirmedOrder.state} State
@@ -390,91 +404,95 @@ function CheckoutPage() {
               </div>
             </div>
 
+            {/* Bank transfer instructions */}
             <div className="rounded-3xl border border-border bg-card p-5">
               <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 <Building2 className="size-4 text-primary" />
-                Payment Method
+                Bank Transfer Payment
               </div>
 
-              {confirmedOrder.paymentMethod === "pod" ? (
-                <div className="mt-3 rounded-2xl bg-secondary/70 p-3 text-xs leading-relaxed text-secondary-foreground">
-                  <p className="font-bold">
-                    Pay on Delivery (Cash or POS)
-                  </p>
-                  <p className="mt-1 opacity-90">
-                    Please prepare {naira(confirmedOrder.total)} to be paid
-                    to the delivery courier upon receiving your package.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-3 rounded-2xl bg-accent/60 p-3.5 text-xs text-foreground">
-                  <p className="font-bold text-primary">
-                    Direct Bank Transfer Instructions
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
-                    Please transfer the total amount to complete dispatch:
-                  </p>
+              <div className="mt-3 rounded-2xl bg-accent/60 p-3.5 text-xs text-foreground">
+                <p className="font-bold text-primary">
+                  Transfer the exact amount below
+                </p>
 
-                  <div className="mt-2 space-y-1 rounded-xl bg-card p-3 font-mono text-xs">
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">Bank:</span>
-                      <span className="text-right font-bold">
-                        Opay Microfinance Bank
-                      </span>
-                    </div>
+                <p className="mt-1 text-muted-foreground">
+                  Please use your bank app to transfer the total amount.
+                  Your order will remain pending until payment is verified.
+                </p>
 
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Account Name:
-                      </span>
-                      <span className="text-right font-bold">
-                        Josppy Electrical Engineering Services
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Account Number:
-                      </span>
-                      <span className="font-bold text-primary">
-                        6428600287
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-3 border-t border-border pt-1">
-                      <span className="text-muted-foreground">Amount:</span>
-                      <span className="font-bold text-primary">
-                        {naira(confirmedOrder.total)}
-                      </span>
-                    </div>
+                <div className="mt-3 space-y-2 rounded-xl bg-card p-3 font-mono text-xs">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Bank:</span>
+                    <span className="text-right font-bold">
+                      Opay Microfinance Bank
+                    </span>
                   </div>
 
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    After transfer, send your proof of payment via WhatsApp
-                    to{" "}
-                    <a
-                      href={getWhatsAppSupportUrl(
-                        `Hello JOSPPY GADGETS, here is my proof of payment for order #${confirmedOrder.id.slice(0, 8).toUpperCase()}.`,
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold text-primary underline"
-                    >
-                      {SUPPORT_PHONE}
-                    </a>{" "}
-                    or call{" "}
-                    <a
-                      href={SUPPORT_PHONE_CALL}
-                      className="font-bold text-foreground underline"
-                    >
-                      {SUPPORT_PHONE}
-                    </a>
-                    .
-                  </p>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Account Name:
+                    </span>
+                    <span className="max-w-[65%] text-right font-bold">
+                      Josppy Electrical Engineering Services
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">
+                      Account Number:
+                    </span>
+                    <span className="font-bold text-primary">
+                      6428600287
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-3 border-t border-border pt-2">
+                    <span className="text-muted-foreground">
+                      Amount to Transfer:
+                    </span>
+                    <span className="text-right font-bold text-primary">
+                      {naira(confirmedOrder.total)}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Order ID:</span>
+                    <span className="font-bold">
+                      #{confirmedOrder.id.slice(0, 8).toUpperCase()}
+                    </span>
+                  </div>
                 </div>
-              )}
+
+                <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                  After transferring, send your proof of payment through
+                  WhatsApp. We will check our account before confirming
+                  payment. A screenshot alone is not payment confirmation.
+                </p>
+
+                <a
+                  href={getWhatsAppSupportUrl(
+                    `Hello JOSPPY GADGETS, I have made a bank transfer for order #${confirmedOrder.id.slice(0, 8).toUpperCase()}. My name is ${confirmedOrder.fullName}. The order total is ${naira(confirmedOrder.total)}. I would like to submit my payment evidence for verification.`,
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] px-4 py-3 text-center text-sm font-bold text-white"
+                >
+                  <Phone className="size-4" />
+                  Send Payment Evidence on WhatsApp
+                </a>
+
+                <a
+                  href={SUPPORT_PHONE_CALL}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-4 py-3 text-sm font-bold text-secondary-foreground"
+                >
+                  <Phone className="size-4" />
+                  Call {SUPPORT_PHONE}
+                </a>
+              </div>
             </div>
 
+            {/* Order items */}
             <div className="rounded-3xl border border-border bg-card p-5">
               <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                 <PackageCheck className="size-4 text-primary" />
@@ -501,6 +519,7 @@ function CheckoutPage() {
                       <p className="truncate text-xs font-bold">
                         {item.name}
                       </p>
+
                       <p className="font-mono text-[11px] text-muted-foreground">
                         {item.quantity} × {naira(item.price)}
                       </p>
@@ -529,7 +548,7 @@ function CheckoutPage() {
                 </div>
 
                 <div className="flex justify-between text-sm font-black text-foreground">
-                  <span>Total</span>
+                  <span>Total to Transfer</span>
                   <span className="font-mono text-primary">
                     {naira(confirmedOrder.total)}
                   </span>
@@ -537,11 +556,13 @@ function CheckoutPage() {
               </div>
             </div>
 
+            {/* Support */}
             <div className="rounded-3xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-foreground">
-                  Questions about this order?
+                  Questions about your order?
                 </span>
+
                 <span className="font-mono text-xs font-bold text-primary">
                   {SUPPORT_PHONE}
                 </span>
@@ -550,7 +571,7 @@ function CheckoutPage() {
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <a
                   href={getWhatsAppSupportUrl(
-                    `Hello JOSPPY GADGETS, I just placed order #${confirmedOrder.id.slice(0, 8).toUpperCase()}.`,
+                    `Hello JOSPPY GADGETS, I have a question about order #${confirmedOrder.id.slice(0, 8).toUpperCase()}.`,
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -663,6 +684,7 @@ function CheckoutPage() {
             <span className="grid size-6 place-items-center rounded-lg bg-accent font-mono text-xs font-bold text-primary">
               1
             </span>
+
             <h2 className="text-sm font-black tracking-tight">
               Delivery Address
             </h2>
@@ -686,17 +708,20 @@ function CheckoutPage() {
               <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Full Name <span className="text-destructive">*</span>
               </label>
+
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="e.g. Joshua Sunday"
+                autoComplete="name"
                 className={`mt-1.5 w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary ${
                   errors["fullName"]
                     ? "border-destructive bg-destructive/5"
                     : "border-input"
                 }`}
               />
+
               {errors["fullName"] && (
                 <p className="mt-1 text-[11px] text-destructive">
                   {errors["fullName"]}
@@ -716,12 +741,14 @@ function CheckoutPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g. 0801 234 5678"
+                  autoComplete="tel"
                   className={`w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary ${
                     errors["phone"]
                       ? "border-destructive bg-destructive/5"
                       : "border-input"
                   }`}
                 />
+
                 <Phone className="pointer-events-none absolute right-3 top-3 size-4 text-muted-foreground" />
               </div>
 
@@ -750,6 +777,7 @@ function CheckoutPage() {
                       </option>
                     ))}
                   </select>
+
                   <ChevronDown className="pointer-events-none absolute right-3 top-3 size-4 text-muted-foreground" />
                 </div>
 
@@ -770,6 +798,7 @@ function CheckoutPage() {
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="e.g. Ikeja"
+                  autoComplete="address-level2"
                   className={`mt-1.5 w-full rounded-xl border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary ${
                     errors["city"]
                       ? "border-destructive bg-destructive/5"
@@ -796,6 +825,7 @@ function CheckoutPage() {
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Street address, house number, nearest bus stop or landmark…"
+                autoComplete="street-address"
                 className={`mt-1.5 w-full rounded-xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary ${
                   errors["address"]
                     ? "border-destructive bg-destructive/5"
@@ -812,107 +842,62 @@ function CheckoutPage() {
           </div>
         </section>
 
-        {/* 2. Payment Method */}
+        {/* 2. Payment: Bank Transfer Only */}
         <section className="mt-4 rounded-3xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-center gap-2 border-b border-border pb-3">
             <span className="grid size-6 place-items-center rounded-lg bg-accent font-mono text-xs font-bold text-primary">
               2
             </span>
+
             <h2 className="text-sm font-black tracking-tight">
               Payment Method
             </h2>
           </div>
 
-          <div className="mt-3.5 space-y-2">
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 ${
-                paymentMethod === "pod"
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-background"
-              }`}
-            >
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="pod"
-                checked={paymentMethod === "pod"}
-                onChange={() => setPaymentMethod("pod")}
-                className="mt-1 accent-primary"
-              />
+          <div className="mt-3.5 rounded-2xl border border-primary bg-primary/5 p-3.5">
+            <div className="flex items-center gap-2 font-bold text-foreground">
+              <Building2 className="size-5 text-primary" />
+              Direct Bank Transfer
+            </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Truck className="size-4 text-primary" />
-                  <span>Pay on Delivery</span>
-                  <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-[9.5px] font-bold text-success">
-                    Popular
-                  </span>
-                </div>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Transfer the order total to our company account. We will
+              verify your payment before approving your order for dispatch.
+            </p>
 
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Pay via Cash or POS transfer when our courier delivers to
-                  your doorstep.
-                </p>
+            <div className="mt-3 space-y-2 rounded-xl border border-border bg-card p-3 font-mono text-xs">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Bank:</span>
+                <span className="text-right font-bold">
+                  Opay Microfinance Bank
+                </span>
               </div>
-            </label>
 
-            <label
-              className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 ${
-                paymentMethod === "transfer"
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-background"
-              }`}
-            >
-              <input
-                type="radio"
-                name="paymentMethod"
-                value="transfer"
-                checked={paymentMethod === "transfer"}
-                onChange={() => setPaymentMethod("transfer")}
-                className="mt-1 accent-primary"
-              />
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 font-bold text-foreground">
-                  <Building2 className="size-4 text-primary" />
-                  <span>Direct Bank Transfer</span>
-                </div>
-
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Fast bank transfer directly to our company account before
-                  delivery.
-                </p>
-
-                {paymentMethod === "transfer" && (
-                  <div className="mt-3 space-y-1 rounded-xl border border-primary/20 bg-card p-3 font-mono text-[11px]">
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">Bank:</span>
-                      <span className="text-right font-bold">
-                        Opay Microfinance Bank
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Account Name:
-                      </span>
-                      <span className="text-right font-bold">
-                        Josppy Electrical Engineering Services
-                      </span>
-                    </div>
-
-                    <div className="flex justify-between gap-3">
-                      <span className="text-muted-foreground">
-                        Account Number:
-                      </span>
-                      <span className="font-bold text-primary">
-                        6428600287
-                      </span>
-                    </div>
-                  </div>
-                )}
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Account Name:</span>
+                <span className="max-w-[65%] text-right font-bold">
+                  Josppy Electrical Engineering Services
+                </span>
               </div>
-            </label>
+
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Account Number:
+                </span>
+                <span className="font-bold text-primary">
+                  6428600287
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
+
+              <p>
+                Do not assume your order is paid simply because you have
+                submitted it or sent a receipt. Payment must be verified.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -923,6 +908,7 @@ function CheckoutPage() {
               <span className="grid size-6 place-items-center rounded-lg bg-accent font-mono text-xs font-bold text-primary">
                 3
               </span>
+
               <h2 className="text-sm font-black tracking-tight">
                 Order Summary
               </h2>
@@ -934,18 +920,18 @@ function CheckoutPage() {
           </div>
 
           <div className="mt-3 divide-y divide-border/60">
-            {items.map((i) => {
-              const isItemRemoved = removedIds.has(i.id);
+            {items.map((item) => {
+              const isItemRemoved = removedIds.has(item.id);
 
               return (
                 <div
-                  key={i.id}
+                  key={item.id}
                   className="flex items-center gap-3 py-2.5"
                 >
-                  {i.image_url ? (
+                  {item.image_url ? (
                     <img
-                      src={resolveProductImageUrl(i.image_url)}
-                      alt={i.name}
+                      src={resolveProductImageUrl(item.image_url)}
+                      alt={item.name}
                       className="size-12 shrink-0 rounded-xl object-cover"
                     />
                   ) : (
@@ -953,7 +939,9 @@ function CheckoutPage() {
                   )}
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold">{i.name}</p>
+                    <p className="truncate text-xs font-bold">
+                      {item.name}
+                    </p>
 
                     {isItemRemoved ? (
                       <span className="text-[10px] font-bold text-destructive">
@@ -961,19 +949,19 @@ function CheckoutPage() {
                       </span>
                     ) : (
                       <p className="font-mono text-[11px] text-muted-foreground">
-                        Qty: {i.quantity} × {naira(i.price)}
+                        Qty: {item.quantity} × {naira(item.price)}
                       </p>
                     )}
                   </div>
 
                   <div className="text-right">
                     <span className="font-mono text-xs font-bold text-foreground">
-                      {naira(i.price * i.quantity)}
+                      {naira(item.price * item.quantity)}
                     </span>
 
-                    {i.quantity > i.stock && (
+                    {item.quantity > item.stock && (
                       <p className="text-[10px] text-destructive">
-                        Max: {i.stock}
+                        Max: {item.stock}
                       </p>
                     )}
                   </div>
@@ -998,7 +986,7 @@ function CheckoutPage() {
             </div>
 
             <div className="flex justify-between border-t border-border/60 pt-2 text-sm font-black text-foreground">
-              <span>Grand Total</span>
+              <span>Total to Transfer</span>
               <span className="font-mono text-base font-bold text-primary">
                 {naira(grandTotal)}
               </span>
@@ -1010,6 +998,7 @@ function CheckoutPage() {
         <div className="mt-4 space-y-2 text-center text-xs text-muted-foreground">
           <div className="flex items-center justify-center gap-2">
             <ShieldCheck className="size-4 text-primary" />
+
             <span>
               Genuine products · Inspected & tested before delivery
             </span>
@@ -1073,11 +1062,11 @@ function CheckoutPage() {
             {submitting ? (
               <>
                 <Loader2 className="size-5 animate-spin" />
-                <span>Placing your order…</span>
+                <span>Submitting order…</span>
               </>
             ) : (
               <>
-                <span>Place Order · {naira(grandTotal)}</span>
+                <span>Submit Order · {naira(grandTotal)}</span>
                 <ArrowRight className="size-4" />
               </>
             )}
