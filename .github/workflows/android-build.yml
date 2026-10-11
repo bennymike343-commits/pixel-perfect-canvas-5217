@@ -3,15 +3,16 @@ name: Build JOSPPY GADGETS APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-android:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -22,14 +23,21 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build web application
         run: bun run build
 
-      - name: Check Capacitor entry point
-        run: test -f .output/public/index.html
+      - name: Verify Capacitor entry point
+        run: |
+          if [ ! -f .output/public/index.html ]; then
+            echo "ERROR: .output/public/index.html was not generated."
+            exit 1
+          fi
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
