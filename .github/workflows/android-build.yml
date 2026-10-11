@@ -20,11 +20,10 @@ steps:
   - name: Build web application
     run: bun run build
 
-  - name: Verify standalone Capacitor entry point
+  - name: Verify Capacitor entry point
     run: |
       test -f .output/public/index.html || {
         echo "ERROR: .output/public/index.html is missing."
-        echo "Check the project's build output and index generator."
         exit 1
       }
 
