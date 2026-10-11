@@ -20,8 +20,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Set up Android SDK
+      - name: Install Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools,platforms;android-35,build-tools;35.0.0
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
@@ -33,11 +35,7 @@ jobs:
         run: bun run build
 
       - name: Verify Capacitor entry point
-        run: |
-          if [ ! -f .output/public/index.html ]; then
-            echo "ERROR: .output/public/index.html was not generated."
-            exit 1
-          fi
+        run: test -f .output/public/index.html
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
