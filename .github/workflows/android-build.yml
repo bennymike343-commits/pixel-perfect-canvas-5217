@@ -1,3 +1,6 @@
+name: Build JOSPPY GADGETS APK
+on: workflow_dispatch: push: branches: - main
+jobs: build-android: runs-on: ubuntu-latest
 steps:
   - name: Checkout repository
     uses: actions/checkout@v4
