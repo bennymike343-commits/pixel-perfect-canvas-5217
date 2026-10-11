@@ -23,23 +23,29 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
+
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Install dependencies
+      - name: Install project dependencies
         run: bun install --frozen-lockfile
 
       - name: Build web application
         run: bun run build
 
       - name: Verify Capacitor entry point
-        run: test -f .output/public/index.html
+        run: |
+          if [ ! -f .output/public/index.html ]; then
+            echo "ERROR: .output/public/index.html was not generated."
+            exit 1
+          fi
+          echo "Capacitor entry point found."
 
       - name: Sync Capacitor Android
         run: bunx cap sync android
