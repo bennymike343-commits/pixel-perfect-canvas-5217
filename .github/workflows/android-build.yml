@@ -1,67 +1,67 @@
 name: Build JOSPPY GADGETS APK
-
 on:
-  workflow_dispatch:
-
+workflow_dispatch:
 permissions:
-  contents: read
-
+contents: read
 jobs:
-  build-android:
-    runs-on: ubuntu-latest
+build-android:
+runs-on: ubuntu-latest
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+  - name: Set up Java
+    uses: actions/setup-java@v5
+    with:
+      distribution: temurin
+      java-version: '21'
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '21'
+  - name: Set up Android SDK
+    uses: android-actions/setup-android@v4
+    with:
+      packages: 'platform-tools'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
+  - name: Accept Android SDK licenses
+    run: yes | sdkmanager --licenses
 
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses
+  - name: Install Android SDK packages
+    run: |
+      sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Install Android SDK packages
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+  - name: Install Bun
+    uses: oven-sh/setup-bun@v2
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+  - name: Install project dependencies
+    run: bun install --frozen-lockfile
 
-      - name: Install project dependencies
-        run: bun install --frozen-lockfile
+  - name: Build web application
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+    run: bun run build
 
-      - name: Build web application
-        run: bun run build
+  - name: Verify Capacitor entry point
+    run: |
+      if [ ! -f .output/public/index.html ]; then
+        echo "ERROR: .output/public/index.html was not generated."
+        exit 1
+      fi
+      echo "Capacitor entry point found."
 
-      - name: Verify Capacitor entry point
-        run: |
-          if [ ! -f .output/public/index.html ]; then
-            echo "ERROR: .output/public/index.html was not generated."
-            exit 1
-          fi
-          echo "Capacitor entry point found."
+  - name: Sync Capacitor Android
+    run: bunx cap sync android
 
-      - name: Sync Capacitor Android
-        run: bunx cap sync android
+  - name: Build debug APK
+    working-directory: android
+    run: |
+      chmod +x gradlew
+      ./gradlew assembleDebug
 
-      - name: Build debug APK
-        working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: josppy-gadgets-debug-apk
+      path: android/app/build/outputs/apk/debug/app-debug.apk
+      if-no-files-found: error
+      retention-days: 14
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: josppy-gadgets-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 14
