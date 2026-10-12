@@ -75,7 +75,7 @@
     color-mix(in oklab, var(--primary) 55%, transparent);
 }
 
-/* Base styles */
+/* Original base styles */
 @layer base {
   * {
     border-color: var(--color-border);
@@ -89,32 +89,34 @@
   }
 }
 
-/* JOSPPY GADGETS - Mobile screen width fix */
+/* JOSPPY GADGETS — Full-screen mobile layout fix */
 html,
-body {
+body,
+#root {
   width: 100%;
   min-width: 0;
   margin: 0;
   padding: 0;
-  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 html {
   min-height: 100%;
+  overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
 }
 
 #root {
-  width: 100%;
-  min-width: 0;
-  min-height: 100%;
-  margin: 0;
-  padding: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
 }
 
 /* Consistent sizing across mobile screens */
@@ -124,7 +126,7 @@ body {
   box-sizing: border-box;
 }
 
-/* Images and media must not exceed the screen width */
+/* Images and media must not exceed screen width */
 img,
 video,
 canvas,
@@ -132,12 +134,7 @@ svg {
   max-width: 100%;
 }
 
-/* Avoid horizontal overflow from long text */
-body {
-  overflow-wrap: break-word;
-}
-
-/* Custom utilities */
+/* Original custom utilities */
 @utility bg-hero {
   background-image: var(--gradient-hero);
 }
@@ -159,7 +156,7 @@ body {
   }
 }
 
-/* Animations */
+/* Original animations */
 @keyframes sweep {
   0% {
     transform: translateX(-80%) rotate(-14deg);
@@ -207,7 +204,7 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Respect Android users who prefer reduced motion */
+/* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
