@@ -63,19 +63,24 @@
   --border: oklch(0.91 0.02 300);
   --input: oklch(0.91 0.02 300);
   --ring: oklch(0.52 0.24 295);
+
   --gradient-hero: linear-gradient(
     120deg,
     var(--primary-deep),
     var(--primary) 55%,
     var(--primary-glow)
   );
-  --shadow-glow: 0 10px 30px -10px color-mix(in oklab, var(--primary) 55%, transparent);
+
+  --shadow-glow: 0 10px 30px -10px
+    color-mix(in oklab, var(--primary) 55%, transparent);
 }
 
+/* Base styles */
 @layer base {
   * {
     border-color: var(--color-border);
   }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -84,58 +89,132 @@
   }
 }
 
+/* JOSPPY GADGETS - Mobile screen width fix */
+html,
+body {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+html {
+  min-height: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Consistent sizing across mobile screens */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Images and media must not exceed the screen width */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+/* Avoid horizontal overflow from long text */
+body {
+  overflow-wrap: break-word;
+}
+
+/* Custom utilities */
 @utility bg-hero {
   background-image: var(--gradient-hero);
 }
+
 @utility shadow-glow {
   box-shadow: var(--shadow-glow);
 }
+
 @utility glass {
   background: color-mix(in oklab, var(--card) 75%, transparent);
   backdrop-filter: blur(14px) saturate(140%);
 }
+
 @utility no-scrollbar {
   scrollbar-width: none;
+
   &::-webkit-scrollbar {
     display: none;
   }
 }
 
+/* Animations */
 @keyframes sweep {
   0% {
     transform: translateX(-80%) rotate(-14deg);
   }
+
   100% {
     transform: translateX(260%) rotate(-14deg);
   }
 }
+
 @keyframes rise {
   from {
     opacity: 0;
     transform: translateY(14px);
   }
+
   to {
     opacity: 1;
     transform: none;
   }
 }
+
 @keyframes pulse-glow {
   0%,
   100% {
     transform: scale(1);
     opacity: 0.9;
   }
+
   50% {
     transform: scale(1.06);
     opacity: 1;
   }
 }
+
 @utility animate-sweep {
   animation: sweep 4.5s linear infinite;
 }
+
 @utility animate-rise {
   animation: rise 0.5s ease-out both;
 }
+
 @utility animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* Respect Android users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+    }
